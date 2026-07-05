@@ -73,7 +73,7 @@ msgbus/
 **Interfaces:**
 - Produces: `msgbus::BusError` (`QueueAlreadyExists(String)`, `NoSuchQueue(String)`, `TypeMismatch { name, expected, actual }`, `ShutDown(String)`), `SendError<T>::Closed(T)`, `TrySendError<T>::{WouldBlock(T), Closed(T)}`, `RecvError::Closed`, `TryRecvError::{WouldBlock, Closed}`. All derive `Debug + PartialEq + Eq` (plus `Clone` where `T` doesn't block it) and implement `Display` + `std::error::Error`.
 
-- [ ] **Step 1: Scaffold the project**
+- [x] **Step 1: Scaffold the project**
 
 ```bash
 cd /home/code/home_workspace/msgbus
@@ -101,7 +101,7 @@ tokio = { version = "1", features = ["rt-multi-thread", "macros", "time"] }
 
 Ensure `.gitignore` contains `/target`.
 
-- [ ] **Step 2: Write the failing test**
+- [x] **Step 2: Write the failing test**
 
 Create `tests/errors.rs`:
 
@@ -162,12 +162,12 @@ fn channel_error_display_and_message_recovery() {
 }
 ```
 
-- [ ] **Step 3: Run test to verify it fails**
+- [x] **Step 3: Run test to verify it fails**
 
 Run: `cargo test --test errors`
 Expected: compile FAIL — `unresolved import msgbus::BusError` (etc.)
 
-- [ ] **Step 4: Implement the error types**
+- [x] **Step 4: Implement the error types**
 
 Create `src/error.rs`:
 
@@ -308,12 +308,12 @@ mod error;
 pub use error::{BusError, RecvError, SendError, TryRecvError, TrySendError};
 ```
 
-- [ ] **Step 5: Run test to verify it passes**
+- [x] **Step 5: Run test to verify it passes**
 
 Run: `cargo test --test errors`
 Expected: PASS (2 tests)
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add -A
@@ -338,7 +338,7 @@ Co-Authored-By: Claude Fable 5 <noreply@anthropic.com>"
   - `pub(crate) trait ChannelControl: Send + Sync` with `fn shutdown(&self) -> bool` (returns "queue already drained — retire the entry now") and `fn is_shutdown(&self) -> bool`. (Task 5 extends this trait with `pending` and `destroy`.)
   - `pub struct MessageBus` (`Clone + Default`) with `new() -> Self` and `create<T: Send + 'static>(&self, name: &str, capacity: usize) -> Result<(), BusError>`.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Create `tests/create.rs`:
 
@@ -386,12 +386,12 @@ fn clones_share_state_but_new_buses_are_independent() {
 }
 ```
 
-- [ ] **Step 2: Run test to verify it fails**
+- [x] **Step 2: Run test to verify it fails**
 
 Run: `cargo test --test create`
 Expected: compile FAIL — `unresolved import msgbus::MessageBus`
 
-- [ ] **Step 3: Implement channel core and registry**
+- [x] **Step 3: Implement channel core and registry**
 
 Create `src/channel.rs`:
 
@@ -519,12 +519,12 @@ pub use bus::MessageBus;
 pub use error::{BusError, RecvError, SendError, TryRecvError, TrySendError};
 ```
 
-- [ ] **Step 4: Run test to verify it passes**
+- [x] **Step 4: Run test to verify it passes**
 
 Run: `cargo test --test create`
 Expected: PASS (4 tests). `cargo test` overall: PASS (warnings about unused code are acceptable until later tasks).
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add -A
@@ -551,7 +551,7 @@ Co-Authored-By: Claude Fable 5 <noreply@anthropic.com>"
   - `Sender<T>`: `send(&self, T) -> Result<(), SendError<T>>`, `try_send(&self, T) -> Result<(), TrySendError<T>>`, `name(&self) -> &str`, `Clone`.
   - `Receiver<T>`: `recv(&self) -> Result<T, RecvError>`, `try_recv(&self) -> Result<T, TryRecvError>`, `name(&self) -> &str`, `Clone`, `Drop` (retires a closed, drained queue that would otherwise never see another recv).
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Create `tests/send_recv.rs`:
 
@@ -643,12 +643,12 @@ fn messages_do_not_require_clone_or_debug() {
 }
 ```
 
-- [ ] **Step 2: Run test to verify it fails**
+- [x] **Step 2: Run test to verify it fails**
 
 Run: `cargo test --test send_recv`
 Expected: compile FAIL — no method `acquire_sender` on `MessageBus`
 
-- [ ] **Step 3: Implement Sender, Receiver, and the acquire methods**
+- [x] **Step 3: Implement Sender, Receiver, and the acquire methods**
 
 Create `src/sender.rs`:
 
@@ -876,12 +876,12 @@ pub use receiver::Receiver;
 pub use sender::Sender;
 ```
 
-- [ ] **Step 4: Run test to verify it passes**
+- [x] **Step 4: Run test to verify it passes**
 
 Run: `cargo test`
 Expected: PASS (errors, create, send_recv — all green)
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add -A
@@ -902,7 +902,7 @@ Co-Authored-By: Claude Fable 5 <noreply@anthropic.com>"
 - Consumes: `ChannelControl::shutdown` (Task 2), `Sender`/`Receiver` (Task 3).
 - Produces: `MessageBus::shutdown(&self, name: &str) -> Result<(), BusError>` — note it is **not generic**: it works through the type-erased `control` handle.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Create `tests/shutdown.rs`:
 
@@ -1043,12 +1043,12 @@ fn blocked_receiver_wakes_with_closed_on_shutdown() {
 }
 ```
 
-- [ ] **Step 2: Run test to verify it fails**
+- [x] **Step 2: Run test to verify it fails**
 
 Run: `cargo test --test shutdown`
 Expected: compile FAIL — no method `shutdown` on `MessageBus`
 
-- [ ] **Step 3: Implement shutdown**
+- [x] **Step 3: Implement shutdown**
 
 Add to `impl MessageBus` in `src/bus.rs`:
 
@@ -1076,12 +1076,12 @@ Add to `impl MessageBus` in `src/bus.rs`:
     }
 ```
 
-- [ ] **Step 4: Run test to verify it passes**
+- [x] **Step 4: Run test to verify it passes**
 
 Run: `cargo test`
 Expected: PASS (all suites)
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add -A
@@ -1107,7 +1107,7 @@ Co-Authored-By: Claude Fable 5 <noreply@anthropic.com>"
   - `MessageBus::destroy_take<T: Send + 'static>(&self, name: &str) -> Result<Vec<T>, BusError>` (typed; returns the unconsumed messages)
   - `ChannelControl` gains `fn pending(&self) -> usize` and `fn destroy(&self)`.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Create `tests/state.rs`:
 
@@ -1216,12 +1216,12 @@ fn destroy_works_on_open_queues_and_wakes_blocked_receivers() {
 }
 ```
 
-- [ ] **Step 2: Run test to verify it fails**
+- [x] **Step 2: Run test to verify it fails**
 
 Run: `cargo test --test state`
 Expected: compile FAIL — `unresolved import msgbus::QueueState`
 
-- [ ] **Step 3: Implement state and destroy**
+- [x] **Step 3: Implement state and destroy**
 
 In `src/channel.rs`, extend `ChannelControl` and its impl:
 
@@ -1338,12 +1338,12 @@ In `src/lib.rs`, extend the re-export:
 pub use bus::{MessageBus, QueueState};
 ```
 
-- [ ] **Step 4: Run test to verify it passes**
+- [x] **Step 4: Run test to verify it passes**
 
 Run: `cargo test`
 Expected: PASS (all suites)
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add -A
@@ -1362,7 +1362,7 @@ Co-Authored-By: Claude Fable 5 <noreply@anthropic.com>"
 **Interfaces:**
 - Consumes: the full public API from Tasks 2–5.
 
-- [ ] **Step 1: Write the tests**
+- [x] **Step 1: Write the tests**
 
 Create `tests/drain.rs`:
 
@@ -1467,17 +1467,17 @@ fn mpmc_end_to_end_under_backpressure() {
 }
 ```
 
-- [ ] **Step 2: Run the tests**
+- [x] **Step 2: Run the tests**
 
 Run: `cargo test --test drain`
 Expected: PASS (3 tests). If a test fails, debug the production code (Tasks 2–5 logic) — the tests encode the specified semantics.
 
-- [ ] **Step 3: Run the full suite**
+- [x] **Step 3: Run the full suite**
 
 Run: `cargo test`
 Expected: PASS
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add -A
@@ -1498,7 +1498,7 @@ Co-Authored-By: Claude Fable 5 <noreply@anthropic.com>"
 - Consumes: `Sender<T>`/`Receiver<T>` internals from Task 3.
 - Produces: `Sender::send_async(&self, T) -> impl Future<Output = Result<(), SendError<T>>>`, `Receiver::recv_async(&self) -> impl Future<Output = Result<T, RecvError>>` (plain `async fn`s; executor-agnostic — flume futures work on any runtime).
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Create `tests/async_api.rs`:
 
@@ -1551,12 +1551,12 @@ async fn recv_async_drains_then_sees_closed() {
 }
 ```
 
-- [ ] **Step 2: Run test to verify it fails**
+- [x] **Step 2: Run test to verify it fails**
 
 Run: `cargo test --test async_api`
 Expected: compile FAIL — no method `send_async` on `Sender`
 
-- [ ] **Step 3: Implement the async methods**
+- [x] **Step 3: Implement the async methods**
 
 Add to `impl<T: Send + 'static> Sender<T>` in `src/sender.rs`:
 
@@ -1589,12 +1589,12 @@ Add to `impl<T: Send + 'static> Receiver<T>` in `src/receiver.rs`:
     }
 ```
 
-- [ ] **Step 4: Run test to verify it passes**
+- [x] **Step 4: Run test to verify it passes**
 
 Run: `cargo test`
 Expected: PASS (all suites)
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add -A
@@ -1614,7 +1614,7 @@ Co-Authored-By: Claude Fable 5 <noreply@anthropic.com>"
 **Interfaces:**
 - Consumes: the complete public API. No API changes in this task.
 
-- [ ] **Step 1: Write crate-level docs with a runnable doctest**
+- [x] **Step 1: Write crate-level docs with a runnable doctest**
 
 Prepend to `src/lib.rs`:
 
@@ -1652,16 +1652,16 @@ Prepend to `src/lib.rs`:
 //! ```
 ```
 
-- [ ] **Step 2: Run the doctest**
+- [x] **Step 2: Run the doctest**
 
 Run: `cargo test --doc`
 Expected: PASS (1 doctest)
 
-- [ ] **Step 3: Write README.md**
+- [x] **Step 3: Write README.md**
 
 Create `README.md` covering: what the crate does (the bullet list from the crate docs), the quick-start example (same as the doctest), the state-transition table from **Global Constraints** above (copy it verbatim — it documents every operation's possible results), and the shutdown/destroy semantics paragraphs from **Global Constraints** (drain rules, late receivers, immediate-retire case, the undrained-queue-lives-forever rule with `destroy` as the escape hatch, and the in-flight send caveats).
 
-- [ ] **Step 4: Lint, format, full verification**
+- [x] **Step 4: Lint, format, full verification**
 
 ```bash
 cargo fmt
@@ -1671,7 +1671,7 @@ cargo test
 
 Expected: fmt makes no semantic changes; clippy clean; all tests pass. Fix any clippy findings before committing.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add -A

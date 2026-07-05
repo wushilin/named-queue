@@ -1,0 +1,12 @@
+[package]
+name = "msgbus"
+version = "0.1.0"
+edition = "2021"
+description = "Named, typed, bounded MPMC message bus over flume with graceful shutdown"
+
+[dependencies]
+flume = "0.11"
+arc-swap = "1"
+
+[dev-dependencies]
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "time"] }
