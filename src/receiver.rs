@@ -1,20 +1,24 @@
 use std::sync::Arc;
 
-use crate::bus::MessageBus;
 use crate::channel::ChannelCore;
 use crate::error::{RecvError, TryRecvError};
+use crate::registry::QueueRegistry;
 
 /// A consumer handle for one named queue. Clones compete for messages
 /// (work-sharing, not broadcast).
 pub struct Receiver<T: Send + 'static> {
     rx: flume::Receiver<T>,
     core: Arc<ChannelCore<T>>,
-    bus: MessageBus,
+    registry: QueueRegistry,
 }
 
 impl<T: Send + 'static> Receiver<T> {
-    pub(crate) fn new(rx: flume::Receiver<T>, core: Arc<ChannelCore<T>>, bus: MessageBus) -> Self {
-        Receiver { rx, core, bus }
+    pub(crate) fn new(
+        rx: flume::Receiver<T>,
+        core: Arc<ChannelCore<T>>,
+        registry: QueueRegistry,
+    ) -> Self {
+        Receiver { rx, core, registry }
     }
 
     /// Receive a message, blocking while the queue is empty.
@@ -22,7 +26,7 @@ impl<T: Send + 'static> Receiver<T> {
         match self.rx.recv() {
             Ok(msg) => Ok(msg),
             Err(flume::RecvError::Disconnected) => {
-                self.bus.remove_core(&self.core);
+                self.registry.remove_core(&self.core);
                 Err(RecvError::Closed)
             }
         }
@@ -33,7 +37,7 @@ impl<T: Send + 'static> Receiver<T> {
         match self.rx.recv_async().await {
             Ok(msg) => Ok(msg),
             Err(flume::RecvError::Disconnected) => {
-                self.bus.remove_core(&self.core);
+                self.registry.remove_core(&self.core);
                 Err(RecvError::Closed)
             }
         }
@@ -45,7 +49,7 @@ impl<T: Send + 'static> Receiver<T> {
             Ok(msg) => Ok(msg),
             Err(flume::TryRecvError::Empty) => Err(TryRecvError::WouldBlock),
             Err(flume::TryRecvError::Disconnected) => {
-                self.bus.remove_core(&self.core);
+                self.registry.remove_core(&self.core);
                 Err(TryRecvError::Closed)
             }
         }
@@ -62,7 +66,7 @@ impl<T: Send + 'static> Clone for Receiver<T> {
         Receiver {
             rx: self.rx.clone(),
             core: self.core.clone(),
-            bus: self.bus.clone(),
+            registry: self.registry.clone(),
         }
     }
 }
@@ -70,7 +74,7 @@ impl<T: Send + 'static> Clone for Receiver<T> {
 impl<T: Send + 'static> Drop for Receiver<T> {
     fn drop(&mut self) {
         if self.core.is_shutdown() && self.rx.is_empty() {
-            self.bus.remove_core(&self.core);
+            self.registry.remove_core(&self.core);
         }
     }
 }

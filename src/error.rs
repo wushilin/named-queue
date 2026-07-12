@@ -1,10 +1,10 @@
 use std::error::Error;
 use std::fmt;
 
-/// Errors from bus lifecycle operations: `create`, `acquire_*`, `shutdown`,
+/// Errors from registry lifecycle operations: `create`, `acquire_*`, `shutdown`,
 /// `state`, `destroy`.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub enum BusError {
+pub enum QueueError {
     /// `create` was called with a name that is already registered
     /// (including a queue that is shut down but not yet drained).
     QueueAlreadyExists(String),
@@ -19,25 +19,25 @@ pub enum BusError {
     /// The queue is shut down. For `acquire_receiver` this means it is also
     /// already drained; a closed queue with pending messages still admits
     /// receivers.
-    ShutDown(String),
+    Shutdown(String),
 }
 
-impl fmt::Display for BusError {
+impl fmt::Display for QueueError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            BusError::QueueAlreadyExists(name) => write!(f, "queue `{name}` already exists"),
-            BusError::NoSuchQueue(name) => write!(f, "no such queue `{name}`"),
-            BusError::TypeMismatch {
+            QueueError::QueueAlreadyExists(name) => write!(f, "queue `{name}` already exists"),
+            QueueError::NoSuchQueue(name) => write!(f, "no such queue `{name}`"),
+            QueueError::TypeMismatch {
                 name,
                 expected,
                 actual,
             } => write!(f, "queue `{name}` carries `{actual}`, not `{expected}`"),
-            BusError::ShutDown(name) => write!(f, "queue `{name}` is shut down"),
+            QueueError::Shutdown(name) => write!(f, "queue `{name}` is shut down"),
         }
     }
 }
 
-impl Error for BusError {}
+impl Error for QueueError {}
 
 /// The queue is shut down; the unsent message is handed back.
 #[derive(Debug, Clone, PartialEq, Eq)]

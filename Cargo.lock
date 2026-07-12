@@ -105,7 +105,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "msgbus"
+name = "named_queue"
 version = "0.1.0"
 dependencies = [
  "arc-swap",

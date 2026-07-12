@@ -1,20 +1,20 @@
-use msgbus::{BusError, RecvError, SendError, TryRecvError, TrySendError};
+use named_queue::{QueueError, RecvError, SendError, TryRecvError, TrySendError};
 
 #[test]
-fn bus_error_display() {
+fn queue_error_display() {
     assert_eq!(
-        BusError::QueueAlreadyExists("a".into()).to_string(),
+        QueueError::QueueAlreadyExists("a".into()).to_string(),
         "queue `a` already exists"
     );
     assert_eq!(
-        BusError::NoSuchQueue("b".into()).to_string(),
+        QueueError::NoSuchQueue("b".into()).to_string(),
         "no such queue `b`"
     );
     assert_eq!(
-        BusError::ShutDown("c".into()).to_string(),
+        QueueError::Shutdown("c".into()).to_string(),
         "queue `c` is shut down"
     );
-    let e = BusError::TypeMismatch {
+    let e = QueueError::TypeMismatch {
         name: "d".into(),
         expected: "i32",
         actual: "u8",

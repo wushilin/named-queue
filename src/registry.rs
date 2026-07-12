@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use std::sync::{Arc, RwLock};
 
 use crate::channel::{ChannelControl, ChannelCore};
-use crate::error::BusError;
+use crate::error::QueueError;
 use crate::receiver::Receiver;
 use crate::sender::Sender;
 
@@ -25,23 +25,23 @@ pub enum QueueState {
     Closed { pending: usize },
 }
 
-/// A registry of named, typed, bounded MPMC queues. Cheap to clone; clones
+/// A registry of named, typed, bounded work-sharing queues. Cheap to clone; clones
 /// share the same registry. Send/recv never touch the registry lock.
 #[derive(Clone, Default)]
-pub struct MessageBus {
+pub struct QueueRegistry {
     map: Arc<RwLock<HashMap<String, Entry>>>,
 }
 
-impl MessageBus {
+impl QueueRegistry {
     pub fn new() -> Self {
         Self::default()
     }
 
     /// Register a new bounded queue carrying `T`.
-    pub fn create<T: Send + 'static>(&self, name: &str, capacity: usize) -> Result<(), BusError> {
+    pub fn create<T: Send + 'static>(&self, name: &str, capacity: usize) -> Result<(), QueueError> {
         let mut map = self.map.write().unwrap();
         if map.contains_key(name) {
-            return Err(BusError::QueueAlreadyExists(name.to_string()));
+            return Err(QueueError::QueueAlreadyExists(name.to_string()));
         }
         let core = Arc::new(ChannelCore::<T>::new(name, capacity));
         map.insert(
@@ -56,39 +56,43 @@ impl MessageBus {
     }
 
     /// Get a producer handle.
-    pub fn acquire_sender<T: Send + 'static>(&self, name: &str) -> Result<Sender<T>, BusError> {
+    pub fn acquire_sender<T: Send + 'static>(&self, name: &str) -> Result<Sender<T>, QueueError> {
         let map = self.map.read().unwrap();
         let core = Self::core_of::<T>(&map, name)?;
         if core.is_shutdown() {
-            return Err(BusError::ShutDown(name.to_string()));
+            return Err(QueueError::Shutdown(name.to_string()));
         }
         Ok(Sender::new(core))
     }
 
     /// Get a consumer handle. A closed queue admits new receivers while
     /// messages remain to be drained.
-    pub fn acquire_receiver<T: Send + 'static>(&self, name: &str) -> Result<Receiver<T>, BusError> {
+    pub fn acquire_receiver<T: Send + 'static>(
+        &self,
+        name: &str,
+    ) -> Result<Receiver<T>, QueueError> {
         let map = self.map.read().unwrap();
         let core = Self::core_of::<T>(&map, name)?;
         let rx = core
             .rx
             .load_full()
-            .ok_or_else(|| BusError::ShutDown(name.to_string()))?;
+            .ok_or_else(|| QueueError::Shutdown(name.to_string()))?;
         if core.is_shutdown() && rx.is_empty() {
-            return Err(BusError::ShutDown(name.to_string()));
+            return Err(QueueError::Shutdown(name.to_string()));
         }
         Ok(Receiver::new((*rx).clone(), core, self.clone()))
     }
 
-    /// Shut the named queue down: no new senders, all sends fail. Existing
-    /// receivers and new ones acquired while messages remain drain the queue.
-    pub fn shutdown(&self, name: &str) -> Result<(), BusError> {
+    /// Shut the named queue down: no new senders are issued, and sends that
+    /// observe shutdown fail. Existing receivers and new ones acquired while
+    /// messages remain can drain the queue.
+    pub fn shutdown(&self, name: &str) -> Result<(), QueueError> {
         let mut map = self.map.write().unwrap();
         let entry = map
             .get(name)
-            .ok_or_else(|| BusError::NoSuchQueue(name.to_string()))?;
+            .ok_or_else(|| QueueError::NoSuchQueue(name.to_string()))?;
         if entry.control.is_shutdown() {
-            return Err(BusError::ShutDown(name.to_string()));
+            return Err(QueueError::Shutdown(name.to_string()));
         }
         if entry.control.shutdown() {
             map.remove(name);
@@ -97,11 +101,11 @@ impl MessageBus {
     }
 
     /// Probe a queue's lifecycle state.
-    pub fn state(&self, name: &str) -> Result<QueueState, BusError> {
+    pub fn state(&self, name: &str) -> Result<QueueState, QueueError> {
         let map = self.map.read().unwrap();
         let entry = map
             .get(name)
-            .ok_or_else(|| BusError::NoSuchQueue(name.to_string()))?;
+            .ok_or_else(|| QueueError::NoSuchQueue(name.to_string()))?;
         let pending = entry.control.pending();
         Ok(if entry.control.is_shutdown() {
             QueueState::Closed { pending }
@@ -110,12 +114,12 @@ impl MessageBus {
         })
     }
 
-    /// Force-retire a queue in any state, discarding pending messages.
-    pub fn destroy(&self, name: &str) -> Result<(), BusError> {
+    /// Force-retire the registry entry in any state, discarding pending messages.
+    pub fn destroy(&self, name: &str) -> Result<(), QueueError> {
         let mut map = self.map.write().unwrap();
         let entry = map
             .get(name)
-            .ok_or_else(|| BusError::NoSuchQueue(name.to_string()))?;
+            .ok_or_else(|| QueueError::NoSuchQueue(name.to_string()))?;
         entry.control.destroy();
         map.remove(name);
         Ok(())
@@ -123,7 +127,7 @@ impl MessageBus {
 
     /// Typed force-retire: like [`destroy`](Self::destroy), but hands the
     /// unconsumed messages back to the caller instead of discarding them.
-    pub fn destroy_take<T: Send + 'static>(&self, name: &str) -> Result<Vec<T>, BusError> {
+    pub fn destroy_take<T: Send + 'static>(&self, name: &str) -> Result<Vec<T>, QueueError> {
         let mut map = self.map.write().unwrap();
         let core = Self::core_of::<T>(&map, name)?;
         core.tx.store(None);
@@ -141,15 +145,15 @@ impl MessageBus {
     fn core_of<T: Send + 'static>(
         map: &HashMap<String, Entry>,
         name: &str,
-    ) -> Result<Arc<ChannelCore<T>>, BusError> {
+    ) -> Result<Arc<ChannelCore<T>>, QueueError> {
         let entry = map
             .get(name)
-            .ok_or_else(|| BusError::NoSuchQueue(name.to_string()))?;
+            .ok_or_else(|| QueueError::NoSuchQueue(name.to_string()))?;
         entry
             .any
             .clone()
             .downcast::<ChannelCore<T>>()
-            .map_err(|_| BusError::TypeMismatch {
+            .map_err(|_| QueueError::TypeMismatch {
                 name: name.to_string(),
                 expected: std::any::type_name::<T>(),
                 actual: entry.type_name,
