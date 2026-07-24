@@ -10,6 +10,14 @@
 //! - `create::<T>(name, capacity)` registers a bounded queue.
 //! - Any number of [`Sender`]s and [`Receiver`]s share that queue; receivers
 //!   work-share rather than broadcast.
+//! - `create_broadcasting::<T>(name, capacity)` registers a broadcasting
+//!   queue instead, under the same acquire/shutdown/state contract: every
+//!   `acquire_receiver` call starts a fresh subscription that sees messages
+//!   sent from then on (no history), with its own buffer of `capacity`.
+//!   Senders never block; a subscriber lagging more than `capacity` messages
+//!   behind loses its oldest ones (per-subscriber drop-oldest). Cloning a
+//!   broadcast `Receiver` shares its subscription — clones compete — so call
+//!   `acquire_receiver` again for an independent subscriber.
 //! - `shutdown(name)` revokes the queue's sender handle. Sends that observe
 //!   shutdown fail, while receivers, existing or acquired while messages remain,
 //!   can drain the queue.
@@ -35,6 +43,7 @@
 //! assert!(tx.send("too late".to_string()).is_err());
 //! ```
 
+mod broadcast;
 mod channel;
 mod error;
 mod receiver;
@@ -62,6 +71,14 @@ pub fn default_registry() -> &'static QueueRegistry {
 /// Register a queue in the process-wide default registry.
 pub fn create<T: Send + 'static>(name: &str, capacity: usize) -> Result<(), QueueError> {
     default_registry().create::<T>(name, capacity)
+}
+
+/// Register a broadcasting queue in the process-wide default registry.
+pub fn create_broadcasting<T: Send + Clone + 'static>(
+    name: &str,
+    capacity: usize,
+) -> Result<(), QueueError> {
+    default_registry().create_broadcasting::<T>(name, capacity)
 }
 
 /// Acquire a sender from the process-wide default registry.

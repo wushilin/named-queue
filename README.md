@@ -37,6 +37,52 @@ registry.shutdown("greetings").unwrap();
 assert!(tx.send("too late".to_string()).is_err());
 ```
 
+## Broadcasting Queues
+
+`create_broadcasting::<T>(name, capacity)` registers a pub/sub-style queue
+under the same contract — `acquire_sender`, `acquire_receiver`, `shutdown`,
+`state`, and `destroy` keep their exact signatures, and `T` only additionally
+needs `Clone`:
+
+```rust
+use named_queue::QueueRegistry;
+
+let registry = QueueRegistry::new();
+registry.create_broadcasting::<String>("events", 64).unwrap();
+
+let tx = registry.acquire_sender::<String>("events").unwrap();
+let a = registry.acquire_receiver::<String>("events").unwrap();
+let b = registry.acquire_receiver::<String>("events").unwrap();
+
+tx.send("tick".to_string()).unwrap();
+assert_eq!(a.recv().unwrap(), "tick"); // every subscriber gets a copy
+assert_eq!(b.recv().unwrap(), "tick");
+```
+
+Semantics:
+
+- **From now onwards.** Each `acquire_receiver` call starts a fresh
+  subscription with its own empty buffer of `capacity`; nothing sent earlier
+  is replayed, and no history is kept.
+- **Lossy only under lag.** Delivery is lossless while a subscriber stays
+  within `capacity` messages of the sender. Beyond that, its oldest buffered
+  message is dropped for the newest one, so a stalled subscriber resumes with
+  the freshest `capacity` messages.
+- **Senders never block.** `send`, `send_async`, and `try_send` complete
+  immediately; `try_send` never reports `WouldBlock`. A slow subscriber never
+  penalizes fast ones. With zero subscribers a send succeeds and the message
+  is discarded.
+- **Clones compete.** Cloning a broadcast `Receiver` shares its subscription
+  (the clones work-share that buffer). For an independent copy of the stream,
+  call `acquire_receiver` again.
+- **Shutdown drains.** After `shutdown`, sends fail with `Closed`, existing
+  subscribers drain their buffers then see `Closed`, and no new subscribers
+  are admitted (a fresh subscription could never hold anything to drain).
+  `destroy_take` returns an empty `Vec` for broadcasting queues — every
+  subscriber holds its own copy, so there is no canonical pending set.
+- `state(name)` reports `pending` as the worst subscriber lag (the largest
+  buffered count across subscriptions).
+
 ## Default Registry
 
 For small applications, the crate also exposes a process-wide default registry.
@@ -63,6 +109,7 @@ applications need isolated queue namespaces.
 | Operation | Returns |
 |---|---|
 | `create::<T>(name, cap)` | `Ok(())` \| `Err(QueueAlreadyExists)` |
+| `create_broadcasting::<T>(name, cap)` | `Ok(())` \| `Err(QueueAlreadyExists)` — one namespace shared with `create` |
 | `acquire_sender::<T>(name)` | `Ok(Sender<T>)` \| `Err(NoSuchQueue \| TypeMismatch \| Shutdown)` |
 | `acquire_receiver::<T>(name)` | `Ok(Receiver<T>)` \| `Err(NoSuchQueue \| TypeMismatch \| Shutdown)` — `Shutdown` only when the queue is closed **and** already drained; a closed queue with pending messages still admits receivers |
 | `shutdown(name)` | `Ok(())` \| `Err(NoSuchQueue \| Shutdown)` (second call: `Shutdown` while draining, `NoSuchQueue` after retirement) |
